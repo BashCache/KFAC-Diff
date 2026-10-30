@@ -83,9 +83,9 @@ from compare_pruning_strategies_dream import (
 logger = logging.getLogger(__name__)
 
 
-# ======================================================================== #
+
 #  Dream Denoising Loss                                                    #
-# ======================================================================== #
+
 
 def _dream_loss(
     model: nn.Module,
@@ -95,7 +95,6 @@ def _dream_loss(
 ) -> torch.Tensor:
     """
     Compute discrete diffusion denoising loss for Dream.
-    Crucial fix: Applies Dream logit shift so position i accurately predicts token i.
     """
     with torch.amp.autocast("cuda", dtype=torch.bfloat16):
         out = model(masked_ids)
@@ -116,10 +115,7 @@ def _dream_loss(
     return loss
 
 
-# ======================================================================== #
 #  Dream K-FAC OBD Pruner                                                  #
-# ======================================================================== #
-
 class DreamKFACOBDPruner:
     """
     Timestep-aware K-FAC statistics collection and Kronecker-OBD scoring for
@@ -288,10 +284,8 @@ class DreamKFACOBDPruner:
             torch.cuda.empty_cache()
 
 
-# ======================================================================== #
-#  CLI Arguments                                                           #
-# ======================================================================== #
 
+#  CLI Arguments                                                           #
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Collect per-timestep K-FAC statistics (activations and gradients) and compute Kronecker-OBD scores for Dream Diffusion LMs.",
@@ -352,10 +346,8 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# ======================================================================== #
-#  Main Execution                                                          #
-# ======================================================================== #
 
+# Main Execution                                                          #
 def main() -> None:
     args = parse_args()
     setup_logging(level=args.log_level, log_file=args.log_file)
@@ -379,7 +371,7 @@ def main() -> None:
     logger.info(f"  Device / Dtype     : {args.device} / {args.dtype}")
     logger.info("=" * 65)
 
-    # 1. Load Model & Tokenizer
+    # Load Model & Tokenizer
     logger.info("[1/5] Loading Dream model and tokenizer ...")
     model, tokenizer = load_dream_model_and_tokenizer(
         model_path=args.model,
@@ -389,7 +381,7 @@ def main() -> None:
     )
     model.tokenizer = tokenizer
 
-    # 2. Build calibration loader
+    # Build calibration loader
     logger.info("[2/5] Building calibration data loader ...")
     cal_loader = get_diffusion_calibration_loader(
         dataset_name=args.cal_dataset,
@@ -400,7 +392,7 @@ def main() -> None:
         tokenizer=tokenizer,
     )
 
-    # 3. Collect K-FAC statistics
+    # Collect K-FAC statistics
     logger.info("[3/5] Collecting K-FAC statistics across timesteps ...")
     pruner = DreamKFACOBDPruner(
         model=model,
@@ -420,12 +412,12 @@ def main() -> None:
     pruner.prepare()
     kfac_store = pruner.collect(cal_loader)
 
-    # 4. Save K-FAC store
+    # Save K-FAC store
     logger.info(f"[4/5] Saving K-FAC store to '{save_kfac_path}' ...")
     os.makedirs(os.path.dirname(os.path.abspath(save_kfac_path)), exist_ok=True)
     torch.save(kfac_store, save_kfac_path)
 
-    # 5. Compute + store scores
+    # Compute + store scores
     logger.info(f"[5/5] Computing Kronecker-OBD scores (saved to '{score_dir}') ...")
     pruner.compute_scores()
     pruner.cleanup()

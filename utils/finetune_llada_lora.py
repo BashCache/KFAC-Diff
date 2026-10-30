@@ -102,7 +102,7 @@ def _llada_compat_patches(model_path: str) -> None:
                         return orig(self)
                 model_cls.tie_weights = _safe_tie
 
-            # ── Support heterogeneous per-layer pruned intermediate sizes ── #
+            # Support heterogeneous per-layer pruned intermediate sizes
             layer_hidden_sizes = {}
             if cfg is not None and hasattr(cfg, "mlp_hidden_sizes") and cfg.mlp_hidden_sizes:
                 if isinstance(cfg.mlp_hidden_sizes, dict):
@@ -166,11 +166,7 @@ def _llada_compat_patches(model_path: str) -> None:
                 logger.info(f"Patched LLaDA blocks to support heterogeneous pruned intermediate sizes across {len(layer_hidden_sizes)} layers.")
     except Exception as e:
         logger.warning(f"Error applying LLaDA compat patches: {e}")
-
-# ======================================================================== #
 #  Evaluation Routine                                                                                                                      #
-# ======================================================================== #
-
 @torch.no_grad()
 def evaluate(
     model: nn.Module,
@@ -205,12 +201,7 @@ def evaluate(
     ppl = math.exp(min(avg_loss, 100)) 
 
     return {"val_loss": avg_loss, "val_perplexity": ppl}
-
-
-# ======================================================================== #
 #  Main Training Routine                                                                                                                #
-# ======================================================================== #
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="LoRA Fine-tuning for Pruned LLaDA Diffusion Models")
     

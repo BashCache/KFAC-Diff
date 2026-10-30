@@ -12,12 +12,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 
 logger = logging.getLogger(__name__)
-
-
-# ======================================================================== #
 #  Datasets & Data Loaders                                                 #
-# ======================================================================== #
-
 class TextSequenceDataset(Dataset):
     def __init__(self, token_chunks: List[torch.Tensor]):
         self.token_chunks = token_chunks

@@ -48,12 +48,12 @@ import sys
 import numpy as np
 import torch
 
-# ── make sure project root is on sys.path ─────────────────────────────── #
+# Make sure project root is on sys.path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# ── project imports ────────────────────────────────────────────────────── #
+# Project imports
 from config.base_config import CalibrationConfig, PruningConfig, SparsityConfig
 from core.registry import registry
 from data.diffusion_calibration import get_diffusion_calibration_loader
@@ -64,13 +64,9 @@ from utils.model_utils import load_llada_model_and_tokenizer
 import methods  # noqa: F401
 
 logger = logging.getLogger(__name__)
-
-
-# ======================================================================== #
 #  CLI                                                                       #
-# ======================================================================== #
-
 def parse_args() -> argparse.Namespace:
+    """Define and parse command-line options for LLaDA calibration collection."""
     p = argparse.ArgumentParser(
         description=(
             "Collect per-timestep K-FAC statistics (activations and gradients) "
@@ -79,7 +75,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # ── Model ─────────────────────────────────────────────────────────── #
+    # Model
     model_g = p.add_argument_group("Model")
     model_g.add_argument(
         "--model",
@@ -87,6 +83,7 @@ def parse_args() -> argparse.Namespace:
         metavar="PATH_OR_HF_ID",
         help="HuggingFace model id or local path to the LLaDA checkpoint.",
     )
+    
     model_g.add_argument(
         "--method",
         default="kfac_obd_diffusion",
@@ -123,7 +120,7 @@ def parse_args() -> argparse.Namespace:
         help="Pass trust_remote_code=True to from_pretrained().",
     )
 
-    # ── Calibration data ──────────────────────────────────────────────── #
+    # Calibration data
     cal_g = p.add_argument_group("Calibration data")
     cal_g.add_argument(
         "--cal_dataset",
@@ -143,6 +140,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=4,
         metavar="B",
+        help="Number of calibration sequences processed in each batch.",
     )
     cal_g.add_argument(
         "--seq_len",
@@ -152,7 +150,7 @@ def parse_args() -> argparse.Namespace:
         help="Token sequence length for calibration sequences.",
     )
 
-    # ── Diffusion / noise schedule ────────────────────────────────────── #
+    # Diffusion / noise schedule
     diff_g = p.add_argument_group("Diffusion schedule")
     diff_g.add_argument(
         "--num_timesteps",
@@ -218,7 +216,7 @@ def parse_args() -> argparse.Namespace:
         help="Lambda scaling factor for mean_plus_std / mean_minus_std hybrid aggregation.",
     )
 
-    # ── K-FAC ─────────────────────────────────────────────────────────── #
+    # K-FAC
     kfac_g = p.add_argument_group("K-FAC")
     kfac_g.add_argument(
         "--damp",
@@ -237,7 +235,7 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    # ── Score storage ────────────────────────────────────────────────── #
+    # Score storage
     score_g = p.add_argument_group("Score storage")
     score_g.add_argument(
         "--score_dir",
@@ -249,7 +247,7 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    # ── Layer selection ───────────────────────────────────────────────── #
+    # Layer selection
     layer_g = p.add_argument_group("Layer selection")
     layer_g.add_argument(
         "--layers_to_prune",
@@ -269,7 +267,7 @@ def parse_args() -> argparse.Namespace:
         help="Substring patterns of layer names to SKIP.",
     )
 
-    # ── Iterative pruning (kfac_obd_iterative only) ────────────────────── #
+    # Iterative pruning (kfac_obd_iterative only)
     iter_g = p.add_argument_group("Iterative pruning (kfac_obd_iterative)")
     iter_g.add_argument(
         "--num_rounds",
@@ -293,22 +291,23 @@ def parse_args() -> argparse.Namespace:
         help="Do not save the iteratively pruned model to disk.",
     )
 
-    # ── Misc ──────────────────────────────────────────────────────────── #
+    # Misc
     misc_g = p.add_argument_group("Misc")
-    misc_g.add_argument("--seed",      type=int,  default=42)
+    misc_g.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed used for reproducible calibration sampling.",
+    )
     misc_g.add_argument("--log_level", default="INFO",
-                        choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+                        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                        help="Logging verbosity level.")
     misc_g.add_argument("--log_file",  default=None,
                         metavar="PATH",
                         help="Optional path to write logs to a file.")
 
     return p.parse_args()
-
-
-# ======================================================================== #
 #  Config builder                                                                                                                               #
-# ======================================================================== #
-
 def build_config(args: argparse.Namespace) -> PruningConfig:
     """
     Translate CLI arguments into the PruningConfig the collector reads.
@@ -344,7 +343,7 @@ def build_config(args: argparse.Namespace) -> PruningConfig:
 
     method_name = "kfac_obd_iterative" if args.num_rounds > 1 else args.method
     return PruningConfig(
-        # ── core ──────────────────────────────────────────────────────── #
+        # Core
         method             = method_name,
         model_name_or_path = args.model,
         device             = args.device,
@@ -353,7 +352,7 @@ def build_config(args: argparse.Namespace) -> PruningConfig:
         output_dir         = args.output_dir,
         save_model         = not args.no_save,
 
-        # ── calibration ────────────────────────── #
+        # Calibration
         calibration = CalibrationConfig(
             dataset     = args.cal_dataset,
             num_samples = args.cal_samples,
@@ -369,11 +368,7 @@ def build_config(args: argparse.Namespace) -> PruningConfig:
         method_kwargs   = method_kwargs,
     )
 
-
-# ======================================================================== #
 #  Model + tokenizer loading (LLaDA-specific)                               #
-# ======================================================================== #
-
 def load_llada(args: argparse.Namespace):
     """
     Load the LLaDA model and tokenizer using utils.model_utils.load_llada_model_and_tokenizer.
@@ -388,11 +383,7 @@ def load_llada(args: argparse.Namespace):
     model.tokenizer = tokenizer
     return model, tokenizer
 
-
-# ======================================================================== #
 #  Diffusion-aware calibration loader                                        #
-# ======================================================================== #
-
 def build_calibration_loader(args: argparse.Namespace, tokenizer):
     """
     Build a DataLoader of clean token sequences.
@@ -407,11 +398,7 @@ def build_calibration_loader(args: argparse.Namespace, tokenizer):
         tokenizer    = tokenizer,
     )
 
-
-# ======================================================================== #
 #  Seed                                                                      #
-# ======================================================================== #
-
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -433,21 +420,21 @@ def run(args: argparse.Namespace) -> None:
     _print_banner(args)
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # ── 1. Load model + tokenizer ─────────────────────────────────────── #
+    # 1. Load model + tokenizer
     logger.info("[1/5] Loading model and tokenizer ...")
     model, tokenizer = load_llada(args)
     config = build_config(args)
 
-    # ── 2. Build calibration loader ───────────────────────────────────── #
+    # 2. Build calibration loader
     logger.info("[2/5] Building calibration data loader ...")
     cal_loader = build_calibration_loader(args, tokenizer)
 
-    # ── 3. Instantiate pruner ─────────────────────────────────────────── #
+    # 3. Instantiate pruner
     logger.info(f"[3/5] Instantiating K-FAC pruner with method {args.method} ...")
     pruner_cls = registry.get(args.method)
     pruner     = pruner_cls(model, config)
 
-    # ── Iterative: collect → score → prune, repeated num_rounds times ── #
+    # Iterative: Collect → score → prune, repeated num_rounds times
     if args.method == "kfac_obd_iterative" or hasattr(pruner, "run_iterative_pruning"):
         logger.info(f"[4/5] Running multi-round iterative K-FAC OBD pruning ({args.num_rounds} rounds) ...")
         pruner.run_iterative_pruning(cal_loader)
@@ -463,22 +450,18 @@ def run(args: argparse.Namespace) -> None:
 
     pruner.prepare()
 
-    # ── 4. Collect K-FAC statistics ───────────────────────────────────── #
+    # 4. Collect K-FAC statistics
     logger.info("[4/5] Collecting K-FAC statistics across timesteps ...")
     pruner.collect(cal_loader)
 
-    # ── 5. Compute + store scores ─────────────────────────────────────── #
+    # 5. Compute + store scores
     logger.info(f"[5/5] Computing scores (saved to '{args.score_dir}') ...")
     pruner.compute_scores()
     pruner.cleanup()
 
     logger.info("Done.")
 
-
-# ======================================================================== #
 #  Helpers                                                                   #
-# ======================================================================== #
-
 def _print_banner(args: argparse.Namespace) -> None:
     lines = [
         "",
@@ -506,11 +489,7 @@ def _print_banner(args: argparse.Namespace) -> None:
     for line in lines:
         logger.info(line)
 
-
-# ======================================================================== #
 #  Entry point                                                               #
-# ======================================================================== #
-
 def main() -> None:
     args = parse_args()
     setup_logging(level=args.log_level, log_file=args.log_file)

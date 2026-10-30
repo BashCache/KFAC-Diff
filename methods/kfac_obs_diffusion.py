@@ -79,11 +79,7 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
-
-# ======================================================================== #
 #  Timestep weighting helpers                                                                                                     #
-# ======================================================================== #
-
 def _build_timestep_weights(
     tag       : str,
     timesteps : List[int],
@@ -122,11 +118,7 @@ def _build_timestep_weights(
     total = sum(w.values()) or 1.0
     return {t: v / total for t, v in w.items()}
 
-
-# ======================================================================== #
 #  Exact K-FAC OBS score + weight reconstruction                                                               #
-# ======================================================================== #
-
 def _safe_inv(M: torch.Tensor, damp: float) -> torch.Tensor:
     """
     Damped inversion of a symmetric PSD matrix M.
@@ -134,6 +126,7 @@ def _safe_inv(M: torch.Tensor, damp: float) -> torch.Tensor:
     then inverts via Cholesky. Falls back to torch.linalg.inv.
     """
     d = M.shape[0]
+
     # Scale-relative damping: avoids over/under-damping across layers
     scale = M.norm(p="fro").item() / d + 1e-8
     M_d = M + (damp * scale) * torch.eye(d, dtype=M.dtype, device=M.device)
@@ -221,12 +214,7 @@ def _obs_reconstruct_cols(
         coeff = A_inv[c, :] / a_cc           # (d_in,)
         W    -= w_c.unsqueeze(1) * coeff.unsqueeze(0)
         W[:, c] = 0.0
-
-
-# ======================================================================== #
 #  KFAC-OBS Pruner                                                                                                                              #
-# ======================================================================== #
-
 @registry.register("kfac_obs_diffusion")
 class KFACOBSDiffusionPruner(BasePruner):
     """
@@ -255,7 +243,7 @@ class KFACOBSDiffusionPruner(BasePruner):
         self.alpha_min          : float                                                    = 0.0
         self.alpha_max          : float                                                    = 1.0
 
-    # ── Layer-type helpers ─────────────────────────────────────────────── #
+    # Layer-type helpers
     def _is_up_proj(self, name: str) -> bool:
         return _is_up_proj_layer(name, tuple(self._get_arg("up_proj_keywords", UP_PROJ_KEYWORDS)))
 
@@ -299,9 +287,7 @@ class KFACOBSDiffusionPruner(BasePruner):
                 return float(target_sp)
         return float(self._get_arg("sparsity", self._get_arg("target_sparsity", 0.3)))
 
-    # ------------------------------------------------------------------ #
-    #  Step 1 – Prepare                                                 #
-    # ------------------------------------------------------------------ #
+    #  Step 1 – Prepare
     def prepare(self) -> None:
         self.model.eval()
         for p in self.model.parameters():
@@ -354,9 +340,7 @@ class KFACOBSDiffusionPruner(BasePruner):
 
         self.score_dir = os.path.abspath(score_dir) if score_dir else None
 
-    # ------------------------------------------------------------------ #
-    #  Step 2 – Collect                                                 #
-    # ------------------------------------------------------------------ #
+    #  Step 2 – Collect
     def collect(self, calibration_loader) -> None:
         logger.info("  [KFAC-OBS] Collecting K-FAC statistics across timesteps ...")
         assert self._collector is not None, "Call prepare() before collect()."
@@ -429,9 +413,8 @@ class KFACOBSDiffusionPruner(BasePruner):
             f"(NOT saved to disk — inverses will be computed and saved instead)"
         )
 
-    # ------------------------------------------------------------------ #
-    #  Step 3 – Compute scores                                            #
-    # ------------------------------------------------------------------ #
+
+    #  Step 3 – Compute scores
     def compute_scores(self) -> Dict[str, torch.Tensor]:
         """
         Compute exact K-FAC OBS saliency scores and cache G_inv / A_inv
@@ -512,9 +495,8 @@ class KFACOBSDiffusionPruner(BasePruner):
 
         return scores
 
-    # ---------------------------------------------------------------------------------------------------- #
-    #  Step 4 – Apply pruning with OBS weight reconstruction            #
-    # ---------------------------------------------------------------------------------------------------- #
+
+    #  Step 4 – Apply pruning with OBS weight reconstruction
     def apply_pruning(
         self,
         scores  : Dict[str, torch.Tensor],
@@ -541,7 +523,7 @@ class KFACOBSDiffusionPruner(BasePruner):
         coupling_mode      = self._get_arg("coupling_mode", "geometric")
         attn_coupling_mode = self._get_arg("attn_coupling_mode", "head")
 
-        # ─── helper: build mask_1d from coupled scores ─────────────────── #
+        # Helper: Build mask_1d from coupled scores
         def _couple_and_mask(u_scores_1d, d_scores_1d, d_ff, layer_sp):
             if coupling_mode == "sum":
                 coupled = torch.stack(u_scores_1d).sum(0) + torch.stack(d_scores_1d).sum(0)
@@ -561,7 +543,7 @@ class KFACOBSDiffusionPruner(BasePruner):
             mask_1d[sorted_[n_prune:]] = True
             return mask_1d, prune_idx
 
-        # ─── helper: OBS update + apply_mask for a weight matrix ─────── #
+        # Helper: OBS update + apply_mask for a weight matrix
         do_reconstruct = bool(self._get_arg("reconstruct", True))
 
         def _obs_and_mask(name, module, mask_1d, prune_idx, is_col):
@@ -584,7 +566,7 @@ class KFACOBSDiffusionPruner(BasePruner):
 
         for prefix, block_layers in blocks.items():
 
-            # ── 1. MLP Channels Coupling ───────────────────────────────── #
+            # 1. MLP Channels Coupling
             up_layers   = [(n, m) for n, m in block_layers if self._is_up_proj(n)]
             down_layers = [(n, m) for n, m in block_layers if self._is_down_proj(n)]
 
@@ -612,7 +594,7 @@ class KFACOBSDiffusionPruner(BasePruner):
                         logger.info(f"  [KFAC-OBS] {d_name} (OBS Col): pruned to {(~mask_dn).float().mean():.1%} sparsity")
                         processed_layers.add(d_name)
 
-            # ── 2. Attention Coupling ──────────────────────────────────── #
+            # 2. Attention Coupling
             if attn_coupling_mode in ("head", "channel"):
                 q_layers = [(n, m) for n, m in block_layers if self._is_q_proj(n)]
                 k_layers = [(n, m) for n, m in block_layers if self._is_k_proj(n)]
@@ -726,7 +708,7 @@ class KFACOBSDiffusionPruner(BasePruner):
                                 processed_layers.add(o_n)
                                 logger.info(f"  [KFAC-OBS] {o_n} (OBS Ch Col): {(~m).float().mean():.1%}")
 
-        # ── Fallback for any unpaired / uncoupled layers ──────────────── #
+        # Fallback for any unpaired / uncoupled layers
         for name, module in prunable_layers:
             if name in processed_layers:
                 continue
@@ -747,9 +729,8 @@ class KFACOBSDiffusionPruner(BasePruner):
             mask_2d = _obs_and_mask(name, module, mask_1d, prune_idx, is_col=is_col)
             logger.info(f"  [KFAC-OBS] {name} (OBS fallback): pruned to {(~mask_2d).float().mean():.1%} sparsity")
 
-    # ------------------------------------------------------------------ #
-    #  Step 5 – Cleanup                                                   #
-    # ------------------------------------------------------------------ #
+
+    #  Step 5 – Cleanup
     def cleanup(self) -> None:
         self._kfac_store.clear()
         self._full_matrix_store.clear()

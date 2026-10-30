@@ -60,11 +60,7 @@ logger = logging.getLogger(__name__)
 
 SNR_WEIGHTED = "snr_weighted"
 
-
-# ======================================================================== #
 #  Scores                                                                                                                                                 #
-# ======================================================================== #
-
 def _weight_scores(W2: torch.Tensor, stats: Dict[str, torch.Tensor]) -> torch.Tensor:
     """s_ij = 0.5 * G_ii * A_jj * W_ij^2, with W2 = W^2 already on device (float32)."""
     dev = W2.device
@@ -99,11 +95,7 @@ def aggregate_layer_scores(
         acc.add_(_weight_scores(W2, ts_store[t]), alpha=weights[t] / z)
     return acc
 
-
-# ======================================================================== #
 #  N:M mask                                                                                                                                               #
-# ======================================================================== #
-
 def nm_mask(score: torch.Tensor, n: int, m: int) -> torch.Tensor:
     """
     Boolean keep-mask: top-n of every m consecutive entries along dim=1.
@@ -153,11 +145,7 @@ def prune_model_nm(
         del Wd, score, mask
     return done
 
-
-# ======================================================================== #
 #  Saving                                                                                                                                                #
-# ======================================================================== #
-
 def check_nm_pattern(
     model: nn.Module,
     prunable_names: set,
@@ -212,11 +200,7 @@ def save_pruned_model(
         json.dump(meta, f, indent=2, default=_json_default)
     logger.info(f"    Saved (dense shapes, zeros at pruned positions) -> {out_dir}")
 
-
-# ======================================================================== #
 #  Evaluation                                                                                                                                       #
-# ======================================================================== #
-
 def run_eval(model, tokenizer, args) -> Dict[str, Any]:
     """Perplexity on each --eval_datasets entry (unless --skip_perplexity)."""
     res: Dict[str, Any] = {}
@@ -255,11 +239,7 @@ def print_summary(results: Dict[str, Dict]) -> None:
         row = "".join(f"{r.get(k, float('nan')):>16.4f}" for k in keys)
         logger.info("  " + f"{name:<28s}" + row + f"{r['prunable_layer_sparsity']:>10.2%}")
 
-
-# ======================================================================== #
 #  Main                                                                                                                                                     #
-# ======================================================================== #
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Semi-structured (N:M) K-FAC OBD pruning of LLaDA with timestep aggregation strategies.",

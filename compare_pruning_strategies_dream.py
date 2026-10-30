@@ -90,7 +90,7 @@ from methods.kfac_obd_diffusion import (
     _is_attn_out_layer,
     _get_block_prefix,
 )
-from evaluation.eval_dream import (  # noqa: F401  (Dream evaluation lives in its own module)
+from evaluation.eval_dream import ( 
     DREAM_MASK_TOKEN_ID_DEFAULT,
     DREAM_BOS_TOKEN_ID_DEFAULT,
     DREAM_EOS_TOKEN_ID_DEFAULT,
@@ -105,11 +105,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ======================================================================== #
 #  Pruning Strategy Registry                                                                                                       #
-# ======================================================================== #
-
 def make_strategies(total_timesteps: int = 1000) -> List[Dict]:
     """
     Temporal score-aggregation strategies compared in this script. Each is a dict with
@@ -242,12 +238,7 @@ def _aggregate_store(
 
     store.aggregate(method=strategy["method"], total_timesteps=total_timesteps, **strategy.get("kwargs", {}))
     return store.all_aggregated()
-
-
-# ======================================================================== #
 #  Coupled & Global Pruning Logic                                                                                              #
-# ======================================================================== #
-
 _LayerList = List[Tuple[str, nn.Module]]
 
 
@@ -755,12 +746,7 @@ def _apply_global_sparsity_pruning(
             resolved_sparsities[rec["layer_name"]] = frac_pruned
 
     return resolved_sparsities
-
-
-# ======================================================================== #
 #  Weight Snapshot & Helper Functions                                                                                     #
-# ======================================================================== #
-
 def _snapshot_weights(model: nn.Module) -> Dict[str, torch.Tensor]:
     """Take a memory-efficient CPU clone of all linear layer weights and biases."""
     snapshot: Dict[str, torch.Tensor] = {}
@@ -823,14 +809,7 @@ def _print_summary(results: Dict[str, Any], eval_datasets: List[str]) -> None:
         row += f" {sp:>8.2f}%"
         logger.info(row)
     logger.info("=" * 90)
-
-
-
-
-# ======================================================================== #
 #  CLI Arguments                                                           #
-# ======================================================================== #
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Compare pruning aggregation strategies on Dream-7B-Base "
@@ -883,12 +862,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip_baseline_eval", action="store_true", default=False,
                    help="Skip baseline evaluation (0%% sparsity).")
     return p.parse_args()
-
-
-# ======================================================================== #
 #  Main Execution Loop                                                     #
-# ======================================================================== #
-
 def main() -> None:
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)

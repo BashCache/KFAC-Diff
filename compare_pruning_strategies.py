@@ -88,10 +88,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ======================================================================== #
 #  Strategy registry                                                          #
-# ======================================================================== #
-
 def make_strategies(total_timesteps: int = 1000) -> List[Dict]:
     """
     Temporal score-aggregation strategies compared in this script.
@@ -134,12 +131,7 @@ def _build_custom_weights(
         raise ValueError(f"Unknown custom weight tag: {tag!r}")
 
     return weights
-
-
-# ======================================================================== #
 #  Score computation from raw KFAC store                                     #
-# ======================================================================== #
-
 def _compute_raw_scores_from_kfac(
     kfac_store     : Dict,
     model          : nn.Module,
@@ -176,12 +168,7 @@ def _compute_raw_scores_from_kfac(
 
     logger.info(f"  Raw scores computed for {len(store.layer_names)} layers.")
     return store
-
-
-# ======================================================================== #
 #  Mean-Variance aggregation                                                 #
-# ======================================================================== #
-
 def _aggregate_mean_variance(
     store          : PruningScoreStore,
     lam            : float = 1.0,
@@ -251,11 +238,7 @@ def _aggregate_custom_non_linear(
     logger.info(f"[NonLinearAgg] Aggregated {len(aggregated)} layers using '{tag}'")
     return aggregated
 
-
-# ======================================================================== #
 #  Aggregation (router)                                                      #
-# ======================================================================== #
-
 def _aggregate_store(
     store          : PruningScoreStore,
     strategy_cfg   : Dict,
@@ -266,7 +249,7 @@ def _aggregate_store(
     extra      = strategy_cfg.get("kwargs", {})
     custom_tag = strategy_cfg.get("_custom")
 
-    # ── Mean-Variance strategies get their own aggregator ─────────────── #
+    # Mean-Variance strategies get their own aggregator
     if custom_tag == "mean_var":
         return _aggregate_mean_variance(
             store,
@@ -274,7 +257,7 @@ def _aggregate_store(
             mode           = strategy_cfg.get("_mv_mode",   "subtract"),
         )
 
-    # ── Non-linear aggregations get their own aggregator ──────────────── #
+    # Non-linear aggregations get their own aggregator
     if custom_tag == "max_pooling":
         return _aggregate_custom_non_linear(store, custom_tag)
 
@@ -289,12 +272,7 @@ def _aggregate_store(
         **extra,
     )
     return store.all_aggregated()
-
-
-# ======================================================================== #
 #  Pruning application                                                                                                                    #
-# ======================================================================== #
-
 _LayerList = List[Tuple[str, nn.Module]]
 
 
@@ -595,12 +573,7 @@ def _apply_coupled_structured_pruning(
 
     _prune_unpaired_layers(prunable_layers, scores, target_sparsity, processed, resolved_sparsities)
     return resolved_sparsities
-
-
-# ======================================================================== #
 #  Global sparsity pruning                                                   #
-# ======================================================================== #
-
 def _apply_global_sparsity_pruning(
     model          : nn.Module,
     scores         : Dict[str, torch.Tensor],
@@ -618,7 +591,7 @@ def _apply_global_sparsity_pruning(
     """
     resolved_sparsities: Dict[str, float] = {}
 
-    # ── Build 1-D score vectors for every layer ───────────────────────── #
+    # Build 1-D score vectors for every layer
     layer_scores_1d: Dict[str, torch.Tensor] = {}
     for name, _ in prunable_layers:
         agg = scores.get(name)
@@ -634,20 +607,18 @@ def _apply_global_sparsity_pruning(
         logger.warning("[GlobalSparsity] No scores available — skipping pruning.")
         return resolved_sparsities
 
-    # ── Model config (needed for attention head coupling) ─────────────── #
+    # Model config (needed for attention head coupling)
     cfg        = getattr(model, "config", None)
     n_heads    = getattr(cfg, "n_heads", getattr(cfg, "num_attention_heads", getattr(cfg, "n_head", 32)))
     n_kv_heads = getattr(cfg, "n_kv_heads", getattr(cfg, "num_key_value_heads", n_heads)) or n_heads
     g          = max(1, n_heads // n_kv_heads)
 
-    # ── Build block groups (same logic as coupled pruning) ────────────── #
+    # Build block groups (same logic as coupled pruning)
     blocks: Dict[str, List] = defaultdict(list)
     for name, module in prunable_layers:
         blocks[_get_block_prefix(name)].append((name, module))
 
-    # ─────────────────────────────────────────────────────────────────── #
     #  PASS 1: Collect effective scores per pruning group                  #
-    # ─────────────────────────────────────────────────────────────────── #
     group_records: List[Dict] = []
     accounted: set = set()
 
@@ -655,7 +626,7 @@ def _apply_global_sparsity_pruning(
         up_layers   = [(n, m) for n, m in block_layers if _is_up_proj_layer(n)]
         down_layers = [(n, m) for n, m in block_layers if _is_down_proj_layer(n)]
 
-        # ── MLP group ────────────────────────────────────────────────── #
+        # MLP group
         if up_layers and down_layers:
             all_up   = [layer_scores_1d[n] for n, _ in up_layers   if n in layer_scores_1d]
             all_down = [layer_scores_1d[n] for n, _ in down_layers if n in layer_scores_1d]
@@ -684,7 +655,7 @@ def _apply_global_sparsity_pruning(
                 for n, _ in up_layers + down_layers:
                     accounted.add(n)
 
-        # ── Attention group ───────────────────────────────────────────── #
+        # Attention group
         if attn_coupling_mode in ("head", "channel"):
             q_layers = [(n, m) for n, m in block_layers if _is_q_proj_layer(n)]
             k_layers = [(n, m) for n, m in block_layers if _is_k_proj_layer(n)]
@@ -749,7 +720,7 @@ def _apply_global_sparsity_pruning(
                     for n, _ in q_layers + k_layers + v_layers + o_layers:
                         accounted.add(n)
 
-    # ── Remaining / unpaired layers ──────────────────────────────────── #
+    # Remaining / unpaired layers
     for name, module in prunable_layers:
         if name in accounted or name not in layer_scores_1d:
             continue
@@ -760,9 +731,7 @@ def _apply_global_sparsity_pruning(
             "eff_score": layer_scores_1d[name],
         })
 
-    # ─────────────────────────────────────────────────────────────────── #
     #  Global threshold from effective-score pool                          #
-    # ─────────────────────────────────────────────────────────────────── #
     all_eff_flat = torch.cat([rec["eff_score"].reshape(-1) for rec in group_records])
     total_units  = all_eff_flat.numel()
     n_prune      = max(0, int(math.floor(total_units * global_sparsity)))
@@ -778,9 +747,7 @@ def _apply_global_sparsity_pruning(
         f"global_threshold={threshold:.6g}"
     )
 
-    # ─────────────────────────────────────────────────────────────────── #
     #  PASS 2: Apply threshold to effective scores → zero weights          #
-    # ─────────────────────────────────────────────────────────────────── #
     total_kept = 0
 
     for rec in group_records:
@@ -847,13 +814,7 @@ def _apply_global_sparsity_pruning(
         f"({total_kept / total_units:.1%} kept, {1 - total_kept / total_units:.1%} pruned)"
     )
     return resolved_sparsities
-
-
-
-# ======================================================================== #
 #  Weight snapshot & restore                                                                                                        #
-# ======================================================================== #
-
 def _snapshot_weights(model: nn.Module) -> Dict[str, torch.Tensor]:
     """Deep-copy every parameter to CPU for later restore."""
     return {
@@ -868,12 +829,7 @@ def _restore_weights(model: nn.Module, snapshot: Dict[str, torch.Tensor]) -> Non
         for name, param in model.named_parameters():
             if name in snapshot:
                 param.data.copy_(snapshot[name].to(param.device))
-
-
-# ======================================================================== #
 #  Shared helpers                                                                                                                               #
-# ======================================================================== #
-
 def _get_prunable_layers(
     model: nn.Module,
     layers_to_prune: Optional[List[str]] = None,
@@ -904,12 +860,7 @@ def _json_default(obj):
     if isinstance(obj, torch.Tensor):
         return obj.tolist()
     return str(obj)
-
-
-# ======================================================================== #
 #  Summary & plotting                                                                                                                       #
-# ======================================================================== #
-
 def _print_summary(results: Dict, eval_datasets: List[str]) -> None:
     col_w   = 22
     ds_cols = [f"perplexity_{ds}" for ds in eval_datasets]
@@ -983,12 +934,7 @@ def _plot_comparison(
     fig.savefig(plot_path, dpi=150)
     logger.info(f"  Plot saved to: {plot_path}")
     plt.close(fig)
-
-
-# ======================================================================== #
 #  Model Checkpoint & Parameter Saving                                                                                   #
-# ======================================================================== #
-
 def save_model(
     model: nn.Module,
     output_dir: str,
@@ -1138,13 +1084,7 @@ def save_model(
 
 # Alias for backward compatibility
 save_model_with_params = save_model
-
-
-
-# ======================================================================== #
 #  CLI                                                                       #
-# ======================================================================== #
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Compare pruning aggregation strategies on LLaDA "
@@ -1184,7 +1124,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--attn_coupling_mode", default="head", choices=["head", "channel", "none"],
                    help="Coupling mode for Attention layers: 'head' (head-wise pruning), 'channel' (coupled channel-wise pruning across Q,K,V,O), or 'none' (independent per-layer row pruning).")
 
-    # ── Layer selection ───────────────────────────────────────────────── #
+    # Layer selection
     p.add_argument("--layers_to_prune", nargs="*", default=[],
                    metavar="NAME",
                    help="Substring patterns of layer names to prune. "
@@ -1194,29 +1134,24 @@ def parse_args() -> argparse.Namespace:
                    help="Substring patterns of layer names to SKIP (never prune, "
                         "e.g. --layers_to_skip attn or q_proj k_proj v_proj attn_out).")
 
-    # ── Evaluation options ────────────────────────────────────────────── #
+    # Evaluation options
     p.add_argument("--mc_num", type=int, default=128,
                    help="Monte Carlo masking iterations for perplexity. Must be divisible by --mc_batch_size.")
     p.add_argument("--mc_batch_size", type=int, default=32,
                    help="MC mini-batch size (mc_num must be divisible by this).")
 
-    # ── Checkpoint saving ────────────────────────────────────────────── #
+    # Checkpoint saving
     p.add_argument("--save_model", action="store_true", default=False,
                    help="Physically shrink and save the pruned model checkpoint and tokenizer for each strategy.")
     return p.parse_args()
-
-
-# ======================================================================== #
 #  Main                                                                      #
-# ======================================================================== #
-
 def main() -> None:
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
     torch.manual_seed(args.seed)
 
-    # ── 1. Load model + tokenizer ─────────────────────────────────────── #
+    # 1. Load model + tokenizer
     logger.info("=" * 65)
     logger.info("  [1/8] Loading model …")
     model, tokenizer = load_llada_model_and_tokenizer(
@@ -1226,7 +1161,7 @@ def main() -> None:
     )
     model.tokenizer = tokenizer
 
-    # ── 2. Build evaluation helper ────────────────────────────────────── #
+    # 2. Build evaluation helper
     def _run_eval(model) -> Dict[str, Any]:
         """Perplexity on each --eval_datasets entry."""
         res: Dict[str, Any] = {}
@@ -1248,19 +1183,19 @@ def main() -> None:
             logger.info(f"  Perplexity on {ds}: {ppl:.3f}")
         return res
 
-    # ── 3. Snapshot clean weights for restore between strategies ──────── #
+    # 3. Snapshot clean weights for restore between strategies
     logger.info("  [2/8] Snapshotting clean model weights …")
     clean_snapshot = _snapshot_weights(model)
 
-    # ── 4. Strategy results container ───────────────────────────────────── #
+    # 4. Strategy results container
     results: Dict[str, Dict] = {}
 
-    # ── 5. Load KFAC store ─────────────────────────────────────────────── #
+    # 5. Load KFAC store
     logger.info(f"  [4/8] Loading KFAC store from '{args.kfac_store}' …")
     kfac_store: Dict = torch.load(args.kfac_store, map_location="cpu", weights_only=False)
     logger.info(f"    Layers in KFAC store: {len(kfac_store)}")
 
-    # ── 5b. Load optional pre-computed score store ────────────────────── #
+    # 5b. Load optional pre-computed score store
     precomputed_store: Optional[PruningScoreStore] = None
     if args.scores_pkl and os.path.isfile(args.scores_pkl):
         logger.info(f"  [4b] Loading pre-computed scores from '{args.scores_pkl}' …")
@@ -1270,7 +1205,7 @@ def main() -> None:
             f"Timesteps: {precomputed_store.timesteps}"
         )
 
-    # ── 6. Prunable layers & timestep list ────────────────────────────── #
+    # 6. Prunable layers & timestep list
     prunable_layers = _get_prunable_layers(
         model,
         layers_to_prune=args.layers_to_prune,
@@ -1294,7 +1229,7 @@ def main() -> None:
         f"{timestep_list[:10]}{'…' if len(timestep_list) > 10 else ''}"
     )
 
-    # ── 7. Compute (or reuse) raw per-timestep scores ─────────────────── #
+    # 7. Compute (or reuse) raw per-timestep scores
     if precomputed_store is not None:
         raw_store = precomputed_store
         logger.info("  [6/8] Reusing pre-computed raw score store.")
@@ -1306,7 +1241,7 @@ def main() -> None:
         )
         logger.info(f"    Done in {time.time() - t0:.1f}s")
 
-    # ── 8. Strategy loop ──────────────────────────────────────────────── #
+    # 8. Strategy loop
     all_strategies  = make_strategies(args.total_timesteps)
     requested_names = set(args.strategies) if args.strategies else None
     if requested_names:
@@ -1334,7 +1269,7 @@ def main() -> None:
         # Apply pruning in-place
         t0 = time.time()
         if args.global_sparsity is not None:
-            # ── Global-threshold pruning: pool scores across ALL layers ── #
+            # Global-threshold pruning: Pool scores across ALL layers
             logger.info(
                 f"    [global_sparsity={args.global_sparsity:.1%}] "
                 "Computing single threshold across all layers …"
@@ -1348,7 +1283,7 @@ def main() -> None:
                 attn_coupling_mode=args.attn_coupling_mode,
             )
         else:
-            # ── Per-layer pruning (original behaviour) ────────────────── #
+            # Per-layer pruning (original behaviour)
             resolved_target_sp = _apply_coupled_structured_pruning(
                 model,
                 aggregated,
@@ -1374,7 +1309,7 @@ def main() -> None:
                         for k, v in model_sp["categories"].items())
         )
 
-        # ── Save physically shrunk pruned model if requested ─────────── #
+        # Save physically shrunk pruned model if requested
         if args.save_model:
             strat_out_dir = os.path.join(args.output_dir, f"model_{name}")
             save_model(model, strat_out_dir, tokenizer=tokenizer, save=args.save_model)
@@ -1410,17 +1345,17 @@ def main() -> None:
         logger.info("    Restoring clean weights …")
         _restore_weights(model, clean_snapshot)
 
-    # ── 9. Summary table ──────────────────────────────────────────────── #
+    # 9. Summary table
     _print_summary(results, args.eval_datasets)
 
-    # ── 10. Save JSON ─────────────────────────────────────────────────── #
+    # 10. Save JSON
     logger.info("  [8/8] Saving results …")
     out_path = os.path.join(args.output_dir, "strategy_comparison.json")
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2, default=_json_default)
     logger.info(f"    JSON saved: {out_path}")
 
-    # ── 11. Plot ─────────────────────────────────────────────────────── #
+    # 11. Plot
     try:
         _plot_comparison(results, args.eval_datasets, args.output_dir)
     except Exception as exc:

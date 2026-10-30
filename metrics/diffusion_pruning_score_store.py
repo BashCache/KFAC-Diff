@@ -102,7 +102,7 @@ class PruningScoreStore:
         self._timesteps.sort()
         self._aggregated.clear()
 
-        # ── max_pooling: bypass the weight-vector path entirely ──────────── #
+        # Max_pooling: Bypass the weight-vector path entirely
         if custom_weights is None and method == "max_pooling":
             for layer_name in self._layer_order:
                 ts_scores = self._raw[layer_name]
@@ -121,7 +121,7 @@ class PruningScoreStore:
             )
             return
 
-        # ── weight-based path ────────────────────────────────────────────── #
+        # Weight-based path
         weights: Dict[int, float] = {}
         if custom_weights is not None:
             weights = custom_weights
@@ -189,9 +189,7 @@ class PruningScoreStore:
             f"{len(self._timesteps)} timesteps."
         )
 
-    # ------------------------------------------------------------------ #
-    #  Reading                                                             #
-    # ------------------------------------------------------------------ #
+    # Reading
     @property
     def layer_names(self) -> List[str]:
         return list(self._layer_order)
@@ -223,9 +221,7 @@ class PruningScoreStore:
 
     def all_aggregated(self) -> Dict[str, torch.Tensor]:
         return dict(self._aggregated)
-    # ------------------------------------------------------------------ #
-    #  Serialisation                                                       #
-    # ------------------------------------------------------------------ #
+    # Serialisation
     def save(self, path: str) -> None:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         payload = {
@@ -250,9 +246,7 @@ class PruningScoreStore:
         logger.info(f"[ScoreStore] Loaded from {path}")
         return store
 
-    # ------------------------------------------------------------------ #
-    #  Debug summary                                                     #
-    # ------------------------------------------------------------------ #
+    #  Debug summary
     def summary(self) -> str:
         lines = [
             f"PruningScoreStore",

@@ -49,12 +49,7 @@ logger = logging.getLogger(__name__)
 DREAM_MASK_TOKEN_ID_DEFAULT = 151666
 DREAM_BOS_TOKEN_ID_DEFAULT  = 151665
 DREAM_EOS_TOKEN_ID_DEFAULT  = 151643
-
-
-# ======================================================================== #
 #  Dream Model & Tokenizer Loader                                                                                              #
-# ======================================================================== #
-
 def load_dream_model_and_tokenizer(
     model_path: str,
     dtype: str = "bfloat16",
@@ -99,12 +94,7 @@ def load_dream_model_and_tokenizer(
         f"mask_token_id={mask_token_id}, bos={tokenizer.bos_token_id}, eos={tokenizer.eos_token_id}"
     )
     return model, tokenizer
-
-
-# ======================================================================== #
 #  Dream lm-eval Adapter (Accurate Log-Likelihood Scoring)                                          #
-# ======================================================================== #
-
 class DreamLM(_LM_base):
     """
     lm-evaluation-harness adapter for Dream Diffusion Language Models.
@@ -390,12 +380,7 @@ def _wrap_dream_for_lm_eval(
         device=device,
         add_bos_token=True,
     )
-
-
-# ======================================================================== #
 #  Dream Perplexity Evaluation (Continuous Diffusion ELBO)                                        #
-# ======================================================================== #
-
 def evaluate_perplexity_dream(
     model: nn.Module,
     tokenizer: AutoTokenizer,
@@ -492,12 +477,7 @@ def evaluate_perplexity_dream(
     ppl = math.exp(mean_nll) if not math.isnan(mean_nll) else float("nan")
     logger.info(f"Perplexity [{dataset}]: {ppl:.2f} (mean NLL={mean_nll:.4f})")
     return ppl
-
-
-# ======================================================================== #
 #  CLI                                                                                                                                                       #
-# ======================================================================== #
-
 def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     random.seed(seed)
@@ -572,7 +552,7 @@ def main(argv: Optional[List[str]] = None) -> dict:
         model = PeftModel.from_pretrained(model, args.peft_model)
         model.eval()
 
-    # ── Perplexity (all test sequences) ──────────────────────────────── #
+    # Perplexity (all test sequences)
     datasets_ = [] if args.skip_ppl else [d for d in (args.ppl_datasets or []) if d.lower() not in ("none", "null", "")]
     for ds in datasets_:
         results[f"perplexity_{ds}"] = evaluate_perplexity_dream(
@@ -580,7 +560,7 @@ def main(argv: Optional[List[str]] = None) -> dict:
             mc_num=args.mc_num, mc_batch_size=args.batch_size, sampling_eps=args.sampling_eps,
         )
 
-    # ── lm-eval tasks ─────────────────────────────────────────────────── #
+    # Lm-eval tasks
     if args.tasks:
         lm = DreamLM(
             model=model, tokenizer=tokenizer, batch_size=args.batch_size, mc_num=args.mc_num,

@@ -35,12 +35,7 @@ from utils.model_utils import _llada_compat_patches, load_llada_model_and_tokeni
 
 logger = logging.getLogger(__name__)
 MASK_TOKEN_ID_DEFAULT = 126336
-
-
-# ======================================================================== #
 #  Utilities                                                                                                                                         #
-# ======================================================================== #
-
 def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     random.seed(seed)
@@ -68,11 +63,7 @@ def load_model_and_tokenizer(
         logger.info(f"Loading PEFT adapter from {peft_model}")
         model = PeftModel.from_pretrained(model, peft_model)
     return model, tokenizer
-
-
-# ======================================================================== #
 #  Standalone Perplexity Evaluation                                                                                       #
-# ======================================================================== #
 def evaluate_perplexity(
     model,
     tokenizer,
@@ -155,11 +146,7 @@ def evaluate_perplexity(
     ppl = math.exp(mean_nll) if not math.isnan(mean_nll) else float("nan")
     logger.info(f"Perplexity [{dataset}]: {ppl:.2f} (mean NLL={mean_nll:.4f})")
     return ppl
-
-
-# ======================================================================== #
 #  lm-eval Harness Adapter (Monte Carlo Diffusion Log-Likelihood)                           #
-# ======================================================================== #
 @register_model("llada_diffusion")
 class LLaDiffusionLM(LM):
     """
@@ -243,12 +230,12 @@ class LLaDiffusionLM(LM):
         self.block_length = int(block_length)
         self.remasking = remasking
 
-    # ── LM interface properties ──────────────────────────────────── #
+    # LM interface properties
     @property
     def device(self) -> torch.device:
         return self._device
 
-    # ── Diffusion helpers ────────────────────────────────────────── #
+    # Diffusion helpers
     def _forward_process(self, batch: torch.Tensor, prompt_index: torch.Tensor):
         """Apply forward masking process to the target portion of the batch."""
         b, l = batch.shape
@@ -337,7 +324,7 @@ class LLaDiffusionLM(LM):
         ctx   = self.tokenizer(context)["input_ids"]
         return ctx, whole[len(ctx):]
 
-    # ── lm-eval interface ────────────────────────────────────────── #
+    # Lm-eval interface
     def loglikelihood(self, requests) -> list:
         def _tok(e):
             pfx, tgt = self._encode_pair(e["prefix"], e["target"])
@@ -390,12 +377,7 @@ class LLaDiffusionLM(LM):
             out.append(answer)
 
         return out
-
-
-# ======================================================================== #
 #  CLI                                                                                                                                                       #
-# ======================================================================== #
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Evaluation script for LLaDA discrete diffusion LMs.",
@@ -455,7 +437,7 @@ def main():
     set_seed(args.seed)
     results = {}
 
-    # ── Perplexity ───────────────────────────────────────────────────── #
+    # Perplexity
     clean_ppl_datasets = [] if args.skip_ppl else [d for d in (args.ppl_datasets or []) if d.lower() not in ("none", "null", "")]
     if clean_ppl_datasets:
         model, tokenizer = load_model_and_tokenizer(
@@ -474,7 +456,7 @@ def main():
         del model
         torch.cuda.empty_cache()
 
-    # ── lm-eval Task Benchmarks ──────────────────────────────────────── #
+    # Lm-eval Task Benchmarks
     clean_tasks = [t for t in args.tasks if t.lower() not in ("none", "null", "")] if args.tasks else []
     if clean_tasks:
         lm = LLaDiffusionLM(
@@ -484,7 +466,7 @@ def main():
         )
         evaluate_tasks_each(lm, clean_tasks, limit=args.limit, output_path=args.output_path, results=results)
 
-    # ── Summary ─────────────────────────────────────────────────────── #
+    # Summary
     print("\n" + "=" * 60)
     print("Evaluation Summary")
     print("=" * 60)

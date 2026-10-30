@@ -60,11 +60,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ======================================================================== #
 #  Layer selection                                                                                                                             #
-# ======================================================================== #
-
 def dream_prunable_layers(
     model: nn.Module,
     layers_to_prune: List[str],
@@ -84,11 +80,7 @@ def dream_prunable_layers(
         out.append((name, module))
     return out
 
-
-# ======================================================================== #
 #  Saving                                                                                                                                                 #
-# ======================================================================== #
-
 def save_dream_semistructured(
     model: nn.Module,
     tokenizer: Any,
@@ -120,11 +112,7 @@ def save_dream_semistructured(
         json.dump(meta, f, indent=2, default=_json_default)
     logger.info(f"    Saved (dense shapes, zeros at pruned positions) -> {out_dir}")
 
-
-# ======================================================================== #
 #  Evaluation                                                                                                                                       #
-# ======================================================================== #
-
 def run_eval(model: nn.Module, tokenizer, args) -> Dict[str, Any]:
     """Perplexity on each --eval_datasets entry (unless --skip_perplexity)."""
     res: Dict[str, Any] = {}
@@ -151,11 +139,7 @@ def print_summary(results: Dict[str, Dict]) -> None:
         row = "".join(f"{r.get(k, float('nan')):>16.4f}" for k in keys)
         logger.info("  " + f"{name:<28s}" + row + f"{r['prunable_layer_sparsity']:>10.2%}")
 
-
-# ======================================================================== #
 #  CLI / main                                                                                                                                           #
-# ======================================================================== #
-
 def add_ppl_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--skip_perplexity", action="store_true", help="Skip perplexity evaluation.")
     p.add_argument("--eval_datasets", nargs="+", default=["wikitext2", "c4"],

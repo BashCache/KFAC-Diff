@@ -32,10 +32,7 @@ class BasePruner(ABC):
             if val is not None:
                 return val
         return default
-
-    # ------------------------------------------------------------------ #
-    #  Step 1 – Prepare                                                 #
-    # ------------------------------------------------------------------ #
+    #  Step 1 – Prepare                                                 
     def prepare(self) -> None:
         """
         Method-specific model preparation before calibration.
@@ -44,10 +41,7 @@ class BasePruner(ABC):
         self.model.eval()
         for p in self.model.parameters():
             p.requires_grad_(False)
-
-    # ------------------------------------------------------------------ #
-    #  Step 2 – Collect                                                 #
-    # ------------------------------------------------------------------ #
+    #  Step 2 – Collect                                                 
     @abstractmethod
     def collect(self, calibration_loader) -> None:
         """
@@ -55,20 +49,14 @@ class BasePruner(ABC):
         Store anything needed for scoring in self.state.
         """
         ...
-
-    # ------------------------------------------------------------------ #
-    #  Step 3 – Compute scores                                  #
-    # ------------------------------------------------------------------ #
+    #  Step 3 – Compute scores                                  
     @abstractmethod
     def compute_scores(self) -> Dict[str, torch.Tensor]:
         """
         Use self.state to produce per-weight importance scores.
         """
         ...
-
-    # ------------------------------------------------------------------ #
-    #  Step 4 – Apply pruning                                     #
-    # ------------------------------------------------------------------ #
+    #  Step 4 – Apply pruning                                     
     def apply_pruning(
         self,
         scores  : Dict[str, torch.Tensor],
@@ -92,19 +80,13 @@ class BasePruner(ABC):
             self._apply_mask(module, mask)
             achieved = 1.0 - mask.float().mean().item()
             logger.debug(f"  {name}: sparsity = {achieved:.2%}")
-
-    # ------------------------------------------------------------------ #
-    #  Step 5 – Cleanup                                                 #
-    # ------------------------------------------------------------------ #
+    #  Step 5 – Cleanup                                                 
     def cleanup(self) -> None:
         """Remove hooks, clear state, free GPU memory."""
         self.state.clear()
         torch.cuda.empty_cache()
         logger.debug("Pruner state cleared.")
-
-    # ------------------------------------------------------------------ #
-    #  Shared helpers                                                   #
-    # ------------------------------------------------------------------ #
+    #  Shared helpers                                                   
     def _get_prunable_layers(self) -> List[Tuple[str, nn.Module]]:
         """
         Return (name, module) pairs that are candidates for pruning,

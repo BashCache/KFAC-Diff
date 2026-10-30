@@ -275,12 +275,7 @@ def sanitize_auto_map(model_dir: str) -> None:
 
 # Output heads: LLaDA `model.transformer.ff_out` (same short name as the block MLP output), Dream / HF `lm_head`.
 _OUTPUT_HEAD_REGEX = r"(?:.*\.)?transformer\.ff_out|(?:.*\.)?lm_head"
-
-
-# ======================================================================== #
 #  Diffusion Masking & Loss                                                #
-# ======================================================================== #
-
 def masking_ratio(t: int, total_timesteps: int = 64) -> float:
     """Ratio r(t) = t / T of tokens to mask at timestep t in [1, total_timesteps] (linear schedule)."""
     return t / total_timesteps

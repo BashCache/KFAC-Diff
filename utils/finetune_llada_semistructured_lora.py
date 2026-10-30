@@ -50,12 +50,7 @@ from utils.model_utils import compute_diffusion_loss, load_llada_model_and_token
 logger = logging.getLogger(__name__)
 
 META_NAME = "semi_structured_meta.json"
-
-
-# ======================================================================== #
 #  Masked LoRA layer                                                                                                                          #
-# ======================================================================== #
-
 class MaskedLoRALinear(nn.Module):
     """Frozen Linear + LoRA whose update is restricted to the nonzero (unpruned) positions of W."""
 
@@ -209,12 +204,7 @@ def load_and_merge_adapters(
         nm_bad = count_nm_violations(model, names, int(meta["keep_n"]), int(meta["group_m"]))
     return {"layers": len(names), "r": r, "alpha": alpha, "source_model": md.get("source_model"),
             "merge_violations": violations, "nm_violations": nm_bad}
-
-
-# ========================================================================= #
 #  CLI                                                                                                                                                          #
-# ========================================================================= #
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Sparsity-preserving LoRA fine-tuning of N:M pruned LLaDA models.",
@@ -260,12 +250,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
     p.add_argument("--seed", type=int, default=42)
     return p
-
-
-# ======================================================================== #
 #  Main                                                                                                                                                     #
-# ======================================================================== #
-
 def run_masked_lora(
     args: argparse.Namespace,
     model: nn.Module,

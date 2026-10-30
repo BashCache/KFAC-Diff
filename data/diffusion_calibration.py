@@ -3,13 +3,11 @@ Calibration data utilities for LLaDA and other discrete diffusion
 language models.
 
 Discrete diffusion corruption
-──────────────────────────────
 At each timestep t ∈ {1, …, T}, a fraction r(t) of the input tokens
 are replaced with a special [MASK] token.  The model is trained to
 predict the original tokens at the masked positions.
 
 Masking ratio
-─────────────
 r(t) = t / T  (the linear schedule, as in LLaDA)
 """
 
@@ -24,11 +22,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 
 logger = logging.getLogger(__name__)
-
-# ======================================================================== #
 #  Timestep schedule                                                                                                                        #
-# ======================================================================== #
-
 def get_timestep_schedule(
     total_timesteps : int = 1000,
     num_timesteps   : int = 32,
@@ -69,12 +63,7 @@ def get_timestep_schedule(
 
     logger.info(f"Timestep schedule ({strategy}, T={T}, n={n}): {ts}")
     return ts
-
-
-# ======================================================================== #
 #  Masking ratio schedule                                                                                                              #
-# ======================================================================== #
-
 def masking_ratio(
     t               : int,
     total_timesteps : int  = 1000,
@@ -86,12 +75,7 @@ def masking_ratio(
     At t=T  : r=1   (fully masked)
     """
     return t / total_timesteps
-
-
-# ======================================================================== #
 #  Token masking                                                                                                                                  #
-# ======================================================================== #
-
 def diffusion_loss(model, noisy_ids: torch.Tensor, clean_ids: torch.Tensor, mask: Optional[torch.Tensor] = None,
                    shift_logits: bool = False) -> torch.Tensor:
     """
@@ -241,11 +225,7 @@ def _load_c4(num_samples: int, seq_len: int, tokenizer, seed: int):
     valenc = TokenizerWrapper(torch.tensor(val_tokens[:max_val_tokens], dtype=torch.long).unsqueeze(0))
     return trainloader, valenc
 
-
-# ======================================================================== #
 #  Registry                                                                                                                                            #
-# ======================================================================== #
-
 _LOADERS = {
     "c4"          : _load_c4,
     "wikitext2"   : _load_wikitext2

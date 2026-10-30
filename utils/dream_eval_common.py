@@ -55,7 +55,7 @@ def run_eval(model: nn.Module, tokenizer, args, on_update=None) -> Dict[str, Any
 
 def add_eval_args(p: argparse.ArgumentParser) -> None:
     """Evaluation options, shared with eval_semi_structured_dream.py (same names/defaults as compare_pruning_strategies_dream.py)."""
-    # ── Evaluation options (names / defaults as in compare_pruning_strategies_dream.py) ── #
+    # Evaluation options (names / defaults as in compare_pruning_strategies_dream.py)
     p.add_argument("--skip_perplexity", action="store_true",
                    help="Skip perplexity evaluation (only the lm-eval tasks are run).")
     p.add_argument("--eval_datasets", nargs="+", default=["wikitext2", "c4"],

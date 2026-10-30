@@ -2,7 +2,6 @@
 Kronecker-OBD Structural Pruner for Discrete Diffusion Language Models.
 
 Discrete diffusion forward process
-────────────────────────────────────
 At timestep t, a fraction r(t) of the input tokens are replaced with
 a special [MASK] token.  The model predicts the original token at each
 masked position.  The training objective is:
@@ -13,7 +12,6 @@ This is the discrete analogue of the score-matching / denoising loss
 used in continuous diffusion.
 
 K-FAC factors collected per (layer, timestep)
-──────────────────────────────────────────────
 For a Linear layer with input X ∈ R^{d_in} and output H ∈ R^{d_out}:
 
     A(t) = (1/N) Σ_n  x_n x_n^T      ∈ R^{d_in  × d_in }
@@ -22,7 +20,6 @@ For a Linear layer with input X ∈ R^{d_in} and output H ∈ R^{d_out}:
 where g_n = ∂L/∂H_n (gradient of loss w.r.t. pre-activation output).
 
 Kronecker-OBD saliency scores
-───────────────────────────────
 Row scores:
     s_row(t) = 0.5 · diag(G(t)) ⊙ diag(W A(t) W^T)
 
@@ -30,7 +27,6 @@ Column scores:
     s_col(t) = 0.5 · diag(A(t)) ⊙ diag(W^T G(t) W)
 
 Aggregated score (used for pruning decision)
-─────────────────────────────────────────────
     s = Σ_t  s(t)          
 """
 
@@ -60,12 +56,7 @@ from metrics.diffusion_pruning_score_store import PruningScoreStore
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
-
-
-# ======================================================================== #
 #  Kronecker-OBD saliency score computation                                                                       #
-# ======================================================================== #
-
 def _kfac_obd_row_scores(
     W: torch.Tensor,
     stats: Dict[str, Optional[torch.Tensor]],
@@ -208,9 +199,7 @@ class KFACOBDDiffusionPruner(BasePruner):
         target = self._get_arg("sparsity", self._get_arg("target_sparsity", 0.5))
         return float(target)
 
-    # ------------------------------------------------------------------ #
-    #  Step 1 – Prepare                                                  #
-    # ------------------------------------------------------------------ #
+    #  Step 1 – Prepare
     def prepare(self) -> None:
         """
         Prepare model parameters for gradient-based K-FAC collection and instantiate the collector.
@@ -269,9 +258,8 @@ class KFACOBDDiffusionPruner(BasePruner):
 
         self.score_dir = os.path.abspath(score_dir) if score_dir else None
 
-    # ------------------------------------------------------------------ #
-    #  Step 2 – Collect                                                 #
-    # ------------------------------------------------------------------ #
+
+    #  Step 2 – Collect
     def collect(self, calibration_loader) -> None:
         """
         For each (input_ids, timesteps_batch) from calibration_loader:
@@ -359,7 +347,7 @@ class KFACOBDDiffusionPruner(BasePruner):
                         total_bytes += t.element_size() * t.nelement()
         logger.info(f"  [KFACOBDDiff] _kfac_store memory footprint: {total_bytes / (1024**2):.2f} MB")
 
-        # ── Save diagonal KFAC store ──────────────────────────────────────── #
+        # Save diagonal KFAC store
         diag_save_path = getattr(self, "_kfac_save_path", None)
         if not diag_save_path:
             diag_save_path = "kfac_store_activations_gradients_backup_2048_ctxlength_64timesteps.pt"
@@ -367,9 +355,8 @@ class KFACOBDDiffusionPruner(BasePruner):
         torch.save(self._kfac_store, diag_save_path)
         logger.info(f"  [KFACOBDDiff] Diagonal KFAC store saved → {diag_save_path}")
 
-    # ------------------------------------------------------------------ #
-    #  Step 3 – Compute scores                                  #
-    # ------------------------------------------------------------------ #
+
+    #  Step 3 – Compute scores
     def compute_scores(self) -> Dict[str, torch.Tensor]:
         """
         For every (layer, timestep):
@@ -414,7 +401,7 @@ class KFACOBDDiffusionPruner(BasePruner):
                 f"timesteps."
             )
 
-        # ── Aggregate across timesteps ─────────────────────────────── #
+        # Aggregate across timesteps
         self.score_store.aggregate(
             method          = self.agg_method,
             total_timesteps = self.total_timesteps,
@@ -424,7 +411,7 @@ class KFACOBDDiffusionPruner(BasePruner):
 
         logger.info(self.score_store.summary())
 
-        # ── Persist ────────────────────────────────────────────────── #
+        # Persist
         if self.score_dir is not None:
             os.makedirs(self.score_dir, exist_ok=True)
 
@@ -434,9 +421,7 @@ class KFACOBDDiffusionPruner(BasePruner):
 
         return self.score_store.all_aggregated()
 
-    # ------------------------------------------------------------------ #
-    #  Step 4 – Apply pruning                                     #
-    # ------------------------------------------------------------------ #
+    #  Step 4 – Apply pruning
     def apply_pruning(
         self,
         scores  : Dict[str, torch.Tensor],
@@ -739,9 +724,7 @@ class KFACOBDDiffusionPruner(BasePruner):
             )
 
 
-    # ------------------------------------------------------------------ #
-    #  Step 5 – Cleanup                                                  #
-    # ------------------------------------------------------------------ #
+    #  Step 5 – Cleanup
     def cleanup(self) -> None:
         self._kfac_store.clear()
         self.score_store = PruningScoreStore()
